@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 
+console.log('SUPABASE_SERVICE_ROLE_KEY:', process.env.SUPABASE_SERVICE_ROLE_KEY) // ←ここ！
+
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -21,7 +23,10 @@ export default async function handler(req: any, res: any) {
     delta_val: delta
   })
 
-  if (error) return res.status(500).json({ error: error.message })
+  if (error) {
+    console.error('RPC error:', error.message) // ←ここも追加しとくといい
+    return res.status(500).json({ error: error.message })
+  }
 
   res.status(200).json({ message: 'Points updated successfully' })
 }
