@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 
-console.log('SUPABASE_SERVICE_ROLE_KEY:', process.env.SUPABASE_SERVICE_ROLE_KEY) // ←ここ！
+console.log('SUPABASE_SERVICE_ROLE_KEY:', process.env.SUPABASE_SERVICE_ROLE_KEY)
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -18,15 +18,36 @@ export default async function handler(req: any, res: any) {
     return res.status(400).json({ error: 'Invalid input' })
   }
 
-  const { error } = await supabase.rpc('adjust_points', {
+  // ① 現在のポイントを取得
+  const { data, error: fetchError } = await supabase
+    .from('PointWallets')
+    .select('total_points')
+    .eq('user_id', user_id)
+    .single()
+
+  if (fetchError) {
+    console.error('ポイント取得エラー:', fetchError.message)
+    return res.status(500).json({ error: 'Failed to fetch points' })
+  }
+
+  const currentPoints = data.total_points
+
+  // ② マイナスになるのを防止
+  if (currentPoints + delta < 0) {
+    return res.status(400).json({ error: 'Not enough points' })
+  }
+
+  // ③ ポイント更新（RPC呼び出し）
+  const { error: updateError } = await supabase.rpc('adjust_points', {
     uid: user_id,
     delta_val: delta
   })
 
-  if (error) {
-    console.error('RPC error:', error.message) // ←ここも追加しとくといい
-    return res.status(500).json({ error: error.message })
+  if (updateError) {
+    console.error('ポイント更新エラー:', updateError.message)
+    return res.status(500).json({ error: updateError.message })
   }
 
+  // ④ 完了レスポンス
   res.status(200).json({ message: 'Points updated successfully' })
 }
