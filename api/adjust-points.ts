@@ -25,9 +25,10 @@ export default async function handler(req: any, res: any) {
     .eq('user_id', user_id)
     .single()
 
-  if (fetchError) {
-    console.error('ポイント取得エラー:', fetchError.message)
-    return res.status(500).json({ error: 'Failed to fetch points' })
+  // ✅ ポイントレコードが存在しないケースへの対応（←これを追加！）
+  if (fetchError || !data) {
+    console.error('ポイント取得エラー（walletが存在しない可能性あり）:', fetchError?.message)
+    return res.status(404).json({ error: 'User wallet not found' })
   }
 
   const currentPoints = data.total_points
