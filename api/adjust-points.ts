@@ -1,10 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 
-console.log('SUPABASE_SERVICE_ROLE_KEY:', process.env.SUPABASE_SERVICE_ROLE_KEY)
-
 const supabase = createClient(
   process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY! // ← security definer に必要
 )
 
 export default async function handler(req: any, res: any) {
@@ -12,36 +10,50 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const { user_id, delta } = req.body
+  const bubbleUserId = req.headers['bubble-user-id']
+  const { delta } = req.body
 
-  if (!user_id || typeof delta !== 'number') {
+  if (!bubbleUserId || typeof delta !== 'number') {
     return res.status(400).json({ error: 'Invalid input' })
   }
 
-  // ① 現在のポイントを取得
+  // ① Bubble ID → Supabaseのuser_id に変換
+  const { data: userRecord, error: userError } = await supabase
+    .from('Users')
+    .select('user_id')
+    .eq('bubble_user_id', bubbleUserId)
+    .single()
+
+  if (userError || !userRecord) {
+    console.error('ユーザー変換エラー:', userError?.message)
+    return res.status(404).json({ error: 'User not found' })
+  }
+
+  const supabaseUserId = userRecord.user_id
+
+  // ② 現在のポイントを取得
   const { data, error: fetchError } = await supabase
     .from('PointWallets')
     .select('total_points')
-    .eq('user_id', user_id)
+    .eq('user_id', supabaseUserId)
     .single()
 
-  // ✅ ポイントレコードが存在しないケースへの対応（←これを追加！）
   if (fetchError || !data) {
-    console.error('ポイント取得エラー（walletが存在しない可能性あり）:', fetchError?.message)
+    console.error('ポイント取得エラー:', fetchError?.message)
     return res.status(404).json({ error: 'User wallet not found' })
   }
 
   const currentPoints = data.total_points
 
-  // ② マイナスになるのを防止
+  // ③ マイナス制限
   if (currentPoints + delta < 0) {
     return res.status(400).json({ error: 'Not enough points' })
   }
 
-  // ③ ポイント更新（RPC呼び出し）
+  // ④ ポイント更新（RPC関数）
   const { error: updateError } = await supabase.rpc('adjust_points', {
-    uid: user_id,
-    delta_val: delta
+    uid: supabaseUserId,
+    delta_val: delta,
   })
 
   if (updateError) {
@@ -49,6 +61,5 @@ export default async function handler(req: any, res: any) {
     return res.status(500).json({ error: updateError.message })
   }
 
-  // ④ 完了レスポンス
   res.status(200).json({ message: 'Points updated successfully' })
 }
