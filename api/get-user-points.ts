@@ -20,7 +20,7 @@ export default async function handler(req: any, res: any) {
   // Bubble ID → Supabase UUID へ変換
   const { data: userRecord, error: userError } = await supabase
     .from('Users')
-    .select('id')
+    .select('user_id')
     .eq('bubble_user_id', bubbleUserId)
     .single()
 
@@ -28,11 +28,11 @@ export default async function handler(req: any, res: any) {
     return res.status(404).json({ error: 'User not found' })
   }
 
-  // UUID を使ってポイント取得（RLSが適用されるならここは公開キーで呼ぶ構成でもOK）
+  // UUID を使ってポイント取得
   const { data: wallet, error: walletError } = await supabase
     .from('PointWallets')
     .select('total_points')
-    .eq('user_id', userRecord.id)
+    .eq('user_id', userRecord.user_id)
     .single()
 
   if (walletError || !wallet) {
