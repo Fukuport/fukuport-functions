@@ -61,5 +61,6 @@ export default async function handler(req: any, res: any) {
     return res.status(500).json({ error: updateError.message })
   }
 
-  res.status(200).json({ message: 'Points updated successfully' })
+  // ✅ Bubbleで条件分岐させるために status を含める
+  res.status(200).json({ status: 200, message: 'Points updated successfully' })
 }
